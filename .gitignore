@@ -25,3 +25,7 @@ obj/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Exclude README files
+README.md
+FactoryPatternApp/README.md
