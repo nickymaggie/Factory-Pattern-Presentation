@@ -12,3 +12,4 @@ C:\Users\n.macmonsam.mbebeb\source\repos\Factory Pattern Presentation\FactoryPat
 C:\Users\n.macmonsam.mbebeb\source\repos\Factory Pattern Presentation\FactoryPatternApp\obj\Debug\net8.0\FactoryPatternApp.pdb
 C:\Users\n.macmonsam.mbebeb\source\repos\Factory Pattern Presentation\FactoryPatternApp\obj\Debug\net8.0\FactoryPatternApp.genruntimeconfig.cache
 C:\Users\n.macmonsam.mbebeb\source\repos\Factory Pattern Presentation\FactoryPatternApp\obj\Debug\net8.0\ref\FactoryPatternApp.dll
+C:\Users\n.macmonsam.mbebeb\source\repos\Factory Pattern Presentation\FactoryPatternApp\obj\Debug\net8.0\FactoryPatternApp.sourcelink.json
