@@ -112,11 +112,11 @@ public sealed class AdvancedPaymentProcessor
         IPaymentService paymentService = _factory.Create(paymentMethod);
         paymentService.Pay(amount);
 
-        LogTransaction(paymentMethod, amount);
+        LogTransaction(paymentService, amount);
     }
 
-    private static void LogTransaction(PaymentMethod paymentMethod, decimal amount)
+    private static void LogTransaction(IPaymentService paymentService, decimal amount)
     {
-        Console.WriteLine($"   ✓ Transaction logged: {paymentMethod} - {amount:C}");
+        Console.WriteLine($"   ✓ Transaction logged: {paymentService.GetPaymentMethodName()} - {amount:C}");
     }
 }

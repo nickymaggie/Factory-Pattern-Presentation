@@ -52,6 +52,34 @@ public class FactoryMethodTests
     }
 
     [Fact]
+    public void ApplePayFactory_Create_ReturnsApplePayPaymentService()
+    {
+        // Arrange
+        var factory = new ApplePayFactory();
+
+        // Act
+        IPaymentService result = factory.Create();
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.IsType<ApplePayPaymentService>(result);
+    }
+
+    [Fact]
+    public void GooglePayFactory_Create_ReturnsGooglePayPaymentService()
+    {
+        // Arrange
+        var factory = new GooglePayFactory();
+
+        // Act
+        IPaymentService result = factory.Create();
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.IsType<GooglePayPaymentService>(result);
+    }
+
+    [Fact]
     public void FactoryMethod_EachCreatesUniqueInstance()
     {
         // Arrange

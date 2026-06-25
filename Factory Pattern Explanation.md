@@ -144,8 +144,15 @@ Create a common contract.
 public interface IPaymentService
 {
     void Pay(decimal amount);
+
+    // Used for logging/auditing the chosen method.
+    string GetPaymentMethodName();
 }
 ```
+
+> **Note on async:** real payment I/O is asynchronous. In production this
+> contract would be `Task PayAsync(decimal amount)`. We keep it synchronous
+> here so the focus stays on object *creation*, not I/O.
 
 Implementations:
 
@@ -214,7 +221,7 @@ public enum PaymentMethod
 ## Factory
 
 ```csharp
-public static class PaymentServiceFactory
+public static class SimplePaymentServiceFactory
 {
     public static IPaymentService Create(
         PaymentMethod paymentMethod)
@@ -249,7 +256,7 @@ public class PaymentProcessor
         decimal amount)
     {
         IPaymentService paymentService =
-            PaymentServiceFactory.Create(paymentMethod);
+            SimplePaymentServiceFactory.Create(paymentMethod);
 
         paymentService.Pay(amount);
     }
@@ -296,7 +303,7 @@ Creation responsibility moved.
 One place:
 
 ```csharp
-PaymentServiceFactory
+SimplePaymentServiceFactory
 ```
 
 controls instantiation.
@@ -328,6 +335,13 @@ PaymentMethod.ApplePay
 ```
 
 and factory mapping.
+
+> **Be honest about OCP here.** The simple factory does *not* fully satisfy the
+> Open/Closed Principle — you still edit the factory's `switch` for every new
+> method. What it buys you is **localization**: the change lives in one
+> well-known place instead of being scattered across the codebase. Genuine OCP
+> (extend without editing existing code) comes later, with DI-driven
+> registration — see *Keyed Services*.
 
 ---
 
@@ -375,12 +389,22 @@ public interface IPaymentService
 
 ## Factory Interface
 
+This pattern uses a **parameterless** factory contract — each concrete factory
+knows the single product it builds. To avoid clashing with the parameterized
+`IPaymentFactory` introduced later (which takes a `PaymentMethod`), we name this
+one `ISimplePaymentFactory`:
+
 ```csharp
-public interface IPaymentFactory
+public interface ISimplePaymentFactory
 {
     IPaymentService Create();
 }
 ```
+
+> **Two factory interfaces, two jobs.** `ISimplePaymentFactory.Create()` is the
+> *Factory Method* shape: one factory per product, no argument. The
+> `IPaymentFactory.Create(PaymentMethod)` shape (next section) is a *parameterized*
+> factory: one factory that picks a product from runtime input.
 
 ---
 
@@ -390,7 +414,7 @@ public interface IPaymentFactory
 
 ```csharp
 public sealed class CreditCardFactory
-    : IPaymentFactory
+    : ISimplePaymentFactory
 {
     public IPaymentService Create()
     {
@@ -405,7 +429,7 @@ public sealed class CreditCardFactory
 
 ```csharp
 public sealed class PayPalFactory
-    : IPaymentFactory
+    : ISimplePaymentFactory
 {
     public IPaymentService Create()
     {
@@ -420,7 +444,7 @@ public sealed class PayPalFactory
 
 ```csharp
 public sealed class BankTransferFactory
-    : IPaymentFactory
+    : ISimplePaymentFactory
 {
     public IPaymentService Create()
     {
@@ -429,6 +453,11 @@ public sealed class BankTransferFactory
 }
 ```
 
+> **Trade-off:** Factory Method scales by adding *classes*, not switch arms — so
+> a system with 50 products needs 50 factory classes. It gives you the cleanest
+> per-type extensibility but the most boilerplate. The parameterized and
+> keyed-services factories below trade some of that for fewer types.
+
 ---
 
 ## Client
@@ -436,10 +465,10 @@ public sealed class BankTransferFactory
 ```csharp
 public class PaymentProcessor
 {
-    private readonly IPaymentFactory _factory;
+    private readonly ISimplePaymentFactory _factory;
 
     public PaymentProcessor(
-        IPaymentFactory factory)
+        ISimplePaymentFactory factory)
     {
         _factory = factory;
     }
@@ -538,6 +567,11 @@ public sealed class PaymentFactory
 }
 ```
 
+> **Pre-.NET-8 pattern.** Resolving each type from `IServiceProvider` via a
+> `switch` was the classic way to combine DI with a factory. It works and gives
+> the services real DI-built dependencies — but the `switch` still grows per
+> type. On .NET 8+, *keyed services* (below) remove that switch entirely.
+
 ---
 
 # Advanced Refactoring: Dictionary-Based Factory
@@ -595,6 +629,77 @@ public sealed class PaymentFactory
     }
 }
 ```
+
+> **Still not true OCP.** A dictionary reads as cleaner than a `switch`, but
+> adding a payment method *still* means editing this class's constructor, and
+> the `() => new XxxService()` lambdas hard-code construction — so dependencies
+> can't be injected into the services. The dictionary's real value is when the
+> entries are **registered from outside** (e.g. each module registers its own
+> creators at startup) rather than hard-coded here. That idea reaches its clean
+> form with DI keyed services, next.
+
+---
+
+# The Modern .NET Approach: Keyed Services (DI)
+
+Since **.NET 8**, the DI container can register multiple implementations of the
+same interface under a *key*. This is the cleanest way to reach genuine OCP:
+adding a payment method is a one-line registration, and the factory contains no
+`switch` and no dictionary to edit.
+
+---
+
+## Registration
+
+```csharp
+public static class PaymentServiceRegistration
+{
+    public static IServiceCollection AddPaymentServices(
+        this IServiceCollection services)
+    {
+        services.AddKeyedTransient<IPaymentService, CreditCardPaymentService>(
+            PaymentMethod.CreditCard);
+        services.AddKeyedTransient<IPaymentService, PayPalPaymentService>(
+            PaymentMethod.PayPal);
+        services.AddKeyedTransient<IPaymentService, BankTransferPaymentService>(
+            PaymentMethod.BankTransfer);
+        // New method? Add one line here. Nothing else changes.
+
+        services.AddSingleton<IPaymentFactory, KeyedServicePaymentFactory>();
+        return services;
+    }
+}
+```
+
+---
+
+## Factory
+
+```csharp
+public sealed class KeyedServicePaymentFactory : IPaymentFactory
+{
+    private readonly IServiceProvider _serviceProvider;
+
+    public KeyedServicePaymentFactory(IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider
+            ?? throw new ArgumentNullException(nameof(serviceProvider));
+    }
+
+    public IPaymentService Create(PaymentMethod paymentMethod)
+    {
+        IPaymentService? service =
+            _serviceProvider.GetKeyedService<IPaymentService>(paymentMethod);
+
+        return service ?? throw new NotSupportedException(
+            $"Payment method '{paymentMethod}' is not supported.");
+    }
+}
+```
+
+The factory body never grows. Each service can take its own constructor
+dependencies (HTTP clients, loggers, options) because the container builds it —
+something the `() => new XxxService()` lambdas could not do.
 
 ---
 
@@ -681,7 +786,9 @@ DI and Factory solve different problems.
 
 ### DI
 
-Resolves dependencies at application startup.
+Wires up a dependency graph that is **known at registration time**. The set of
+collaborators a class needs is fixed when the container is configured; the
+container just supplies them.
 
 ```csharp
 constructor injection
@@ -691,7 +798,8 @@ constructor injection
 
 ### Factory
 
-Resolves dependencies dynamically at runtime.
+Chooses an implementation based on **runtime data** the container can't know in
+advance — a user selection, a config value, a message payload.
 
 Example:
 
@@ -707,7 +815,13 @@ or
 PayPalPaymentService
 ```
 
-A factory is still valuable.
+(Both resolve *at runtime* — the distinction isn't "startup vs runtime", it's
+*who decides which type*: the container from static registration, or the factory
+from runtime data.)
+
+A factory is still valuable — and as *Keyed Services* shows, the two compose:
+the factory makes the data-driven choice, the container builds the chosen
+service with its own dependencies.
 
 ---
 
@@ -768,3 +882,16 @@ if(configuration == ...)
 | Business logic knows concrete classes | Business logic depends on abstractions |
 
 The Factory Pattern is fundamentally about **separating object creation from object usage**. In mature C# applications, it often appears alongside Dependency Injection, Strategy Pattern, and configuration-driven runtime selection, making systems significantly easier to extend and maintain as requirements evolve.
+
+A practical progression for choosing a variant:
+
+| Variant | Reach for it when |
+| ------- | ----------------- |
+| Simple (static switch) factory | A handful of types; you want creation in one place |
+| Factory Method (one factory per type) | Each product has distinct creation logic; you favor classes over switch arms |
+| Parameterized factory | One factory selects from runtime input |
+| Dictionary-based factory | Entries are registered from outside, not hard-coded |
+| **Keyed services (DI, .NET 8+)** | You want genuine OCP and services with their own injected dependencies |
+
+The earlier variants "localize" change; only registration-driven approaches
+(keyed services) let you extend behavior **without editing existing code**.

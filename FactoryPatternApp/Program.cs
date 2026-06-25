@@ -1,6 +1,7 @@
 using FactoryPatternApp.Factories;
 using FactoryPatternApp.Models;
 using FactoryPatternApp.Processors;
+using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Main entry point for the Factory Pattern Demonstration application.
@@ -15,11 +16,12 @@ internal class Program
         DisplayHeader();
 
         DemoAntiPattern();
-        //DemoSimpleFactory();
-        //DemoFactoryMethod();
-        //DemoParameterizedFactory();
-        //DemoDictionaryBasedFactory();
-        //DemoErrorHandling();
+        DemoSimpleFactory();
+        DemoFactoryMethod();
+        DemoParameterizedFactory();
+        DemoDictionaryBasedFactory();
+        DemoKeyedServicesFactory();
+        DemoErrorHandling();
 
         DisplaySummary();
     }
@@ -71,6 +73,12 @@ internal class Program
 
         var bankTransferProcessor = new PaymentProcessorWithFactoryMethod(new BankTransferFactory());
         bankTransferProcessor.ProcessPayment(500.00m);
+
+        var applePayProcessor = new PaymentProcessorWithFactoryMethod(new ApplePayFactory());
+        applePayProcessor.ProcessPayment(19.99m);
+
+        var googlePayProcessor = new PaymentProcessorWithFactoryMethod(new GooglePayFactory());
+        googlePayProcessor.ProcessPayment(29.99m);
         Console.WriteLine();
     }
 
@@ -107,11 +115,35 @@ internal class Program
     }
 
     /// <summary>
+    /// Demonstrates the modern .NET 8 approach: a factory backed by keyed
+    /// services resolved from the DI container. Adding a payment method only
+    /// requires a new registration — the factory has no switch or dictionary.
+    /// </summary>
+    private static void DemoKeyedServicesFactory()
+    {
+        Console.WriteLine("--- Demo 6: Keyed-Services Factory (DI, .NET 8) ---");
+
+        ServiceProvider serviceProvider = new ServiceCollection()
+            .AddPaymentServices()
+            .BuildServiceProvider();
+
+        // In a real app the processor would be resolved from the container too;
+        // here we resolve the factory to keep the demo focused.
+        var factory = serviceProvider.GetRequiredService<IPaymentFactory>();
+        var processor = new PaymentProcessorWithParameterizedFactory(factory);
+
+        processor.ProcessPayment(PaymentMethod.CreditCard, 320.00m);
+        processor.ProcessPayment(PaymentMethod.ApplePay, 12.49m);
+        processor.ProcessPayment(PaymentMethod.GooglePay, 8.99m);
+        Console.WriteLine();
+    }
+
+    /// <summary>
     /// Demonstrates error handling and validation.
     /// </summary>
     private static void DemoErrorHandling()
     {
-        Console.WriteLine("--- Demo 6: Error Handling ---");
+        Console.WriteLine("--- Demo 7: Error Handling ---");
         var dictionaryFactory = new DictionaryBasedPaymentFactory();
         var advancedProcessor = new AdvancedPaymentProcessor(dictionaryFactory);
 
@@ -147,5 +179,6 @@ internal class Program
         Console.WriteLine("✓ Improves testability and maintainability");
         Console.WriteLine("✓ Supports Open/Closed Principle (OCP)");
         Console.WriteLine("✓ Enables runtime selection of implementations");
+        Console.WriteLine("✓ Pairs naturally with DI (keyed services) for true OCP");
     }
 }
