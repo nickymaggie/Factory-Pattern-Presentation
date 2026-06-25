@@ -23,7 +23,7 @@ internal class Program
         DemoKeyedServicesFactory();
         DemoErrorHandling();
 
-        //DisplaySummary();
+        DisplaySummary();
     }
 
     /// <summary>
@@ -73,6 +73,12 @@ internal class Program
 
         var bankTransferProcessor = new PaymentProcessorWithFactoryMethod(new BankTransferFactory());
         bankTransferProcessor.ProcessPayment(500.00m);
+
+        var applePayProcessor = new PaymentProcessorWithFactoryMethod(new ApplePayFactory());
+        applePayProcessor.ProcessPayment(19.99m);
+
+        var googlePayProcessor = new PaymentProcessorWithFactoryMethod(new GooglePayFactory());
+        googlePayProcessor.ProcessPayment(29.99m);
         Console.WriteLine();
     }
 
