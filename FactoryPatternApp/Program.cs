@@ -23,7 +23,7 @@ internal class Program
         DemoKeyedServicesFactory();
         DemoErrorHandling();
 
-        DisplaySummary();
+        //DisplaySummary();
     }
 
     /// <summary>
@@ -73,12 +73,6 @@ internal class Program
 
         var bankTransferProcessor = new PaymentProcessorWithFactoryMethod(new BankTransferFactory());
         bankTransferProcessor.ProcessPayment(500.00m);
-
-        var applePayProcessor = new PaymentProcessorWithFactoryMethod(new ApplePayFactory());
-        applePayProcessor.ProcessPayment(19.99m);
-
-        var googlePayProcessor = new PaymentProcessorWithFactoryMethod(new GooglePayFactory());
-        googlePayProcessor.ProcessPayment(29.99m);
         Console.WriteLine();
     }
 
@@ -179,6 +173,5 @@ internal class Program
         Console.WriteLine("✓ Improves testability and maintainability");
         Console.WriteLine("✓ Supports Open/Closed Principle (OCP)");
         Console.WriteLine("✓ Enables runtime selection of implementations");
-        Console.WriteLine("✓ Pairs naturally with DI (keyed services) for true OCP");
     }
 }
